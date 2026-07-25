@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>IO TooL - Gestión Nube Profesional FINAL V6</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+    <style>
+        :root { --p: #263238; --s: #546e7a; --a: #00796b; --ok: #2e7d32; --err: #c62828; --bg: #eceff1; --pend: #fbc02d; --proc: #03a9f4; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; background: var(--bg); padding: 20px; }
+        
+        .header { background: white; padding: 15px 30px; border-bottom: 4px solid var(--p); display: flex; justify-content: space-between; align-items: center; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        .badge { font-size: 0.75rem; padding: 5px 12px; border-radius: 20px; font-weight: bold; }
+        .status-guest { background: #eeeeee; color: #757575; border: 1px solid #bdbdbd; }
+        .status-admin { background: var(--ok); color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+
+        /* PESTAÑAS INFORMES */
+        .reports-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; margin-bottom: 15px; }
+        .report-tab { background: #cfd8dc; padding: 12px; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-weight: bold; font-size: 0.75rem; border: 1px solid #b0bec5; transition: 0.2s; color: #455a64; }
+        .report-tab.active { background: var(--p); color: white; border-color: var(--p); }
+        .btn-del-tab { color: #ff5252; background: white; border-radius: 50%; width: 18px; height: 18px; display: none; align-items: center; justify-content: center; font-size: 0.7rem; border: 1px solid #ff5252; }
+        .is-master-mode .btn-del-tab { display: flex; }
+
+        /* PANEL CARGA */
+        .panel-carga { background: white; padding: 25px; border-radius: 8px; border: 2px solid var(--s); margin-bottom: 20px; display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; }
+        label { display: block; font-size: 0.65rem; font-weight: 800; text-transform: uppercase; color: var(--s); margin-bottom: 5px; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #b0bec5; border-radius: 4px; font-size: 0.8rem; box-sizing: border-box; }
+
+        .btn { padding: 12px 20px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 0.75rem; text-transform: uppercase; color: white; transition: 0.3s; }
+        .btn-ingresar { background: #0277bd; flex: 1; }
+        .btn-sincro { background: var(--ok); flex: 1; }
+        
+        /* SEGURIDAD COLUMNA ACCIONES */
+        .col-acciones { display: none; }
+        .is-logged .col-acciones { display: table-cell !important; }
+
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; margin-top: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        th { background: var(--p); color: white; padding: 12px; font-size: 0.65rem; text-transform: uppercase; }
+        td { padding: 12px; border-bottom: 1px solid #eee; text-align: center; font-size: 0.85rem; }
+        
+        .est-pendiente { background-color: var(--pend) !important; color: black !important; font-weight: bold; border-radius: 4px; padding: 5px; border: none; }
+        .est-proceso { background-color: var(--proc) !important; color: white !important; font-weight: bold; border-radius: 4px; padding: 5px; border: none; }
+        .est-cumplido { background-color: var(--ok) !important; color: white !important; font-weight: bold; border-radius: 4px; padding: 5px; border: none; }
+
+        .pct-badge { padding: 5px 10px; border-radius: 4px; font-weight: 800; color: white; font-size: 0.8rem; display: inline-block; min-width: 55px; }
+        .pct-ok { background: var(--ok); }
+        .pct-mora { background: var(--err); }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: white; padding: 30px; border-radius: 12px; width: 320px; box-shadow: 0 10px 20px rgba(0,0,0,0.3); }
+
+        /* FILA OCULTA */
+        .fila-oculta { opacity: 0.3; background-color: #fafafa !important; }
+
+        @media print {
+            .no-print { display: none !important; }
+            .fila-oculta { display: none !important; }
+            body { background: white; padding: 0; }
+            table { border: 1px solid #000; width: 100%; }
+            th, td { border: 1px solid #000 !important; color: black !important; }
+        }
+    </style>
+</head>
+<body class="is-guest">
+
+<div class="no-print">
+    <div class="header">
+        <div id="userBadge" class="badge status-guest">NUBE GOOGLE - MODO LECTURA</div>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn master-only-btn" style="background:var(--s); display:none" id="btnMgmt" onclick="openModal('userMgmtModal')">👥 USUARIOS</button>
+            <button class="btn" style="background:var(--p)" id="btnMainAuth" onclick="openModal('loginModal')">🔑 ENTRAR</button>
+        </div>
+    </div>
+
+    <div class="reports-grid" id="reportsGrid"></div>
+    <button class="btn" style="margin-bottom: 20px; background:var(--a); display:none" id="btnNuevoTema" onclick="crearNuevoTema()">📂 + NUEVO TEMA / INFORME</button>
+
+    <div class="panel-carga" id="adminPanel">
+        <div class="form-grid">
+            <div><label>Responsable</label><input type="text" id="in_resp"></div>
+            <div><label>Descripción / Acuerdo</label><input type="text" id="in_desc"></div>
+            <div><label>F. Solicitud</label><input type="date" id="in_fs"></div>
+            <div><label>F. Compromiso</label><input type="date" id="in_fc"></div>
+            <div><label>F. Cierre (Real)</label><input type="date" id="in_fe"></div>
+            <div><label>Estado</label>
+                <select id="in_est">
+                    <option value="Pendiente">Pendiente</option>
+                    <option value="En proceso">En proceso</option>
+                    <option value="Cumplido">Cumplido</option>
+                </select>
+            </div>
+        </div>
+        <div style="display: flex; gap: 15px; margin-top: 20px;">
+            <button class="btn btn-ingresar" onclick="agregarFilaLocal()">➕ INGRESAR FILA A LA TABLA</button>
+            <button class="btn btn-sincro" onclick="enviarANube()">💾 SINCRONIZAR CON NUBE GOOGLE</button>
+        </div>
+    </div>
+
+    <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+        <button class="btn" style="background:#ff6f00" onclick="window.print()">🖨 IMPRIMIR SELECCIÓN</button>
+        <button class="btn" style="background:#444" onclick="imprimirTodo()">🖨 IMPRIMIR TODOS LOS INFORMES</button>
+    </div>
+</div>
+
+<div id="printArea">
+    <h2 id="reportTitle" style="text-align: center; color: var(--p); text-transform: uppercase; margin-top: 0;"></h2>
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 30px;">N°</th>
+                <th>Responsable</th>
+                <th>Descripción / Acuerdo</th>
+                <th>F. Solicitud</th>
+                <th>F. Compromiso</th>
+                <th>F. Cierre</th>
+                <th>Estado</th>
+                <th>% Cumplimiento</th>
+                <th class="no-print col-acciones">Acciones</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+    </table>
+</div>
+
+<div id="loginModal" class="modal"><div class="modal-content">
+    <h3 style="margin-top:0">Acceso Sistema</h3>
+    <input type="text" id="userIn" placeholder="Usuario" style="width:100%; margin-bottom:10px; padding:10px; box-sizing:border-box;">
+    <input type="password" id="passIn" placeholder="Clave" style="width:100%; margin-bottom:20px; padding:10px; box-sizing:border-box;">
+    <button class="btn" style="background:var(--ok); width:100%" onclick="validarAcceso()">INGRESAR</button>
+    <button class="btn" style="background:var(--err); width:100%; margin-top:5px;" onclick="closeModal('loginModal')">CERRAR</button>
+</div></div>
+
+<div id="userMgmtModal" class="modal"><div class="modal-content">
+    <h3 style="margin-top:0">Control de Editores</h3>
+    <div id="userListDisplay" style="font-size: 0.75rem; margin-bottom: 15px; max-height: 120px; overflow-y: auto; border: 1px solid #eee; padding: 8px;"></div>
+    <label>Nuevo Editor</label><input type="text" id="nu_user" style="width:100%; margin-bottom:10px;">
+    <label>Clave</label><input type="password" id="nu_pass" style="width:100%; margin-bottom:15px;">
+    <button class="btn" style="background:var(--ok); width:100%" onclick="crearNuevoUsuario()">CREAR EDITOR</button>
+    <button class="btn" style="background:var(--p); width:100%; margin-top:5px;" onclick="closeModal('userMgmtModal')">CERRAR</button>
+</div></div>
+
+<script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyB545oI1krDwVTwlT0f8dz1Rm7ckndHDOY",
+      authDomain: "gestion-io-tool-chile.firebaseapp.com",
+      databaseURL: "https://gestion-io-tool-chile-default-rtdb.firebaseio.com",
+      projectId: "gestion-io-tool-chile",
+      storageBucket: "gestion-io-tool-chile.firebasestorage.app",
+      messagingSenderId: "309291379255",
+      appId: "1:309291379255:web:d0423e864fdd5b8caaedb2"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+    
+    let isLogged = false, isMaster = false; 
+    let usersDb = [{u: "administrador", p: "84864972"}];
+    let db = { activeTab: 0, reports: [{ nombre: "Control General", filas: [] }] };
+
+    function openModal(id) { document.getElementById(id).style.display = 'flex'; if(id === 'userMgmtModal') actualizarListaUsuarios(); }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+    database.ref('IOTool_Cloud').on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data) { db = data; renderAll(); } 
+    });
+
+    database.ref('IOTool_Users').on('value', (snapshot) => {
+        const udata = snapshot.val();
+        if (udata) usersDb = udata;
+    });
+
+    function validarAcceso() {
+        const u = document.getElementById('userIn').value.toLowerCase();
+        const p = document.getElementById('passIn').value;
+        const found = usersDb.find(x => x.u === u && x.p === p);
+        if(found) {
+            isLogged = true; isMaster = (u === "administrador");
+            document.body.classList.add('is-logged'); // ACTIVAR ACCIONES
+            document.getElementById('userBadge').innerText = isMaster ? "ADMIN MAESTRO" : "EDITOR: " + u.toUpperCase();
+            document.getElementById('userBadge').className = "badge status-admin";
+            document.getElementById('adminPanel').style.display = "block";
+            document.getElementById('btnNuevoTema').style.display = "inline-block";
+            document.getElementById('btnMainAuth').innerText = "🔓 SALIR";
+            document.getElementById('btnMainAuth').onclick = () => location.reload();
+            if(isMaster) {
+                document.getElementById('btnMgmt').style.display = 'inline-block';
+                document.body.classList.add('is-master-mode'); 
+            }
+            closeModal('loginModal'); renderAll();
+        } else { alert("Error de acceso"); }
+    }
+
+    function crearNuevoUsuario() {
+        const nu = document.getElementById('nu_user').value.toLowerCase(), np = document.getElementById('nu_pass').value;
+        if(nu && np) {
+            usersDb.push({u: nu, p: np});
+            database.ref('IOTool_Users').set(usersDb);
+            actualizarListaUsuarios(); alert("Editor creado.");
+            document.getElementById('nu_user').value = ""; document.getElementById('nu_pass').value = "";
+        }
+    }
+
+    function actualizarListaUsuarios() {
+        const cont = document.getElementById('userListDisplay');
+        cont.innerHTML = usersDb.map((x, i) => `
+            <div style="display:flex; justify-content:space-between; padding:4px 0;">
+                <span>• <b>${x.u}</b></span>
+                ${(i > 0 && isMaster) ? `<span style="color:red;cursor:pointer;" onclick="borrarUsuario(${i})">BORRAR</span>` : ''}
+            </div>
+        `).join('');
+    }
+
+    function borrarUsuario(i) { if(confirm("¿Eliminar?")) { usersDb.splice(i,1); database.ref('IOTool_Users').set(usersDb); actualizarListaUsuarios(); } }
+
+    function calcularMetrica(fs, fc, fe) {
+        if (!fs || !fc) return { t: 'S/D', c: 'pct-ok' };
+        const dS = new Date(fs + "T00:00:00"), dC = new Date(fc + "T00:00:00"), dF = fe ? new Date(fe + "T00:00:00") : new Date();
+        dF.setHours(0,0,0,0);
+        const pT = (dC - dS) / 86400000;
+        if (dF <= dC) {
+            if (dF.getTime() === dC.getTime()) return { t: '100%', c: 'pct-ok' };
+            const pct = Math.max(0, Math.min(100, Math.round(((dF - dS) / 86400000 / (pT || 1)) * 100)));
+            return { t: pct + '%', c: 'pct-ok' };
+        } else {
+            const pctM = Math.round(((dF - dC) / 86400000 / (pT || 1)) * 100);
+            return { t: '-' + pctM + '%', c: 'pct-mora' };
+        }
+    }
+
+    function agregarFilaLocal() {
+        const f = {
+            r: document.getElementById('in_resp').value, d: document.getElementById('in_desc').value,
+            fs: document.getElementById('in_fs').value, fc: document.getElementById('in_fc').value,
+            fe: document.getElementById('in_fe').value, e: document.getElementById('in_est').value, v: true
+        };
+        if(!f.r || !f.fs || !f.fc) return alert("Faltan datos.");
+        if(!db.reports[db.activeTab].filas) db.reports[db.activeTab].filas = [];
+        db.reports[db.activeTab].filas.push(f);
+        renderTable();
+        ['in_resp','in_desc','in_fs','in_fc','in_fe'].forEach(id => document.getElementById(id).value = '');
+    }
+
+    async function enviarANube() { try { await database.ref('IOTool_Cloud').set(db); alert("SINCRONIZADO EN NUBE"); } catch (e) { alert(e.message); } }
+
+    function actFecha(i, val) { db.reports[db.activeTab].filas[i].fe = val; renderTable(); }
+    function actEstado(i, val) { db.reports[db.activeTab].filas[i].e = val; renderTable(); }
+    function delFila(i) { if(confirm("¿Borrar registro?")) { db.reports[db.activeTab].filas.splice(i,1); renderTable(); } }
+    function toggleFila(i) { db.reports[db.activeTab].filas[i].v = !db.reports[db.activeTab].filas[i].v; renderTable(); }
+    function crearNuevoTema() { const n = prompt("Nombre:"); if(n){ db.reports.push({nombre:n, filas:[]}); db.activeTab = db.reports.length - 1; renderAll(); } }
+    function borrarTema(i) { if(!isMaster) return; if(confirm("¿Borrar informe?")){ db.reports.splice(i,1); if(db.reports.length===0) db.reports=[{nombre:"Control General",filas:[]}]; db.activeTab=0; renderAll(); } }
+
+    function renderTable() {
+        const rep = db.reports[db.activeTab]; if(!rep) return;
+        document.getElementById('reportTitle').innerText = rep.nombre;
+        const tbody = document.getElementById('tableBody'); tbody.innerHTML = '';
+        if(!rep.filas) return;
+        rep.filas.forEach((f, i) => {
+            const m = calcularMetrica(f.fs, f.fc, f.fe);
+            const claseEst = f.e === "Pendiente" ? "est-pendiente" : (f.e === "En proceso" ? "est-proceso" : "est-cumplido");
+            const tr = tbody.insertRow();
+            if(!f.v) tr.className = "fila-oculta";
+
+            tr.innerHTML = `<td>${i+1}</td><td>${f.r}</td><td>${f.d}</td><td>${f.fs}</td><td>${f.fc}</td>
+                <td>${isLogged ? `<input type="date" value="${f.fe || ''}" onchange="actFecha(${i}, this.value)">` : (f.fe || '--')}</td>
+                <td>
+                    ${isLogged ? `
+                    <select class="${claseEst}" onchange="actEstado(${i}, this.value)" style="width:110px">
+                        <option value="Pendiente" ${f.e==='Pendiente'?'selected':''}>Pendiente</option>
+                        <option value="En proceso" ${f.e==='En proceso'?'selected':''}>En proceso</option>
+                        <option value="Cumplido" ${f.e==='Cumplido'?'selected':''}>Cumplido</option>
+                    </select>` : `<span class="${claseEst}">${f.e}</span>`}
+                </td>
+                <td><span class="pct-badge ${m.c}">${m.t}</span></td>
+                <td class="no-print col-acciones">
+                    <button class="btn" style="background:var(--s); padding:5px 10px;" onclick="toggleFila(${i})" title="Ocultar/Ver para impresión">👁</button>
+                    <button class="btn" style="background:#000; padding:5px 10px;" onclick="delFila(${i})" title="Eliminar">✕</button>
+                </td>`;
+        });
+    }
+
+    function renderAll() {
+        const grid = document.getElementById('reportsGrid'); grid.innerHTML = '';
+        db.reports.forEach((rep, i) => {
+            const tab = document.createElement('div');
+            tab.className = `report-tab ${i === db.activeTab ? 'active' : ''}`;
+            const btnD = (isLogged && isMaster) ? `<span class="btn-del-tab" onclick="event.stopPropagation(); borrarTema(${i})">✕</span>` : '';
+            tab.innerHTML = `<span>${rep.nombre}</span> ${btnD}`;
+            tab.onclick = () => { db.activeTab = i; renderAll(); };
+            grid.appendChild(tab);
+        });
+        renderTable();
+    }
+
+    function imprimirTodo() {
+        const area = document.getElementById('printArea'), vista = area.innerHTML;
+        let html = "";
+        db.reports.forEach(r => {
+            const filasVis = r.filas ? r.filas.filter(f=>f.v) : [];
+            if(filasVis.length > 0) {
+                html += `<h2 style="text-align:center;text-transform:uppercase;">${r.nombre}</h2><table><thead>${document.querySelector('thead').innerHTML}</thead><tbody>`;
+                filasVis.forEach((f, idx) => {
+                    const m = calcularMetrica(f.fs, f.fc, f.fe);
+                    const cE = f.e==="Pendiente"?"est-pendiente":(f.e==="En proceso"?"est-proceso":"est-cumplido");
+                    html += `<tr><td>${idx+1}</td><td>${f.r}</td><td>${f.d}</td><td>${f.fs}</td><td>${f.fc}</td><td>${f.fe||'--'}</td><td><span class="${cE}">${f.e}</span></td><td>${m.t}</td></tr>`;
+                });
+                html += `</tbody></table>`;
+            }
+        });
+        area.innerHTML = html; window.print(); area.innerHTML = vista; renderAll();
+    }
+</script>
+</body>
+</html>
